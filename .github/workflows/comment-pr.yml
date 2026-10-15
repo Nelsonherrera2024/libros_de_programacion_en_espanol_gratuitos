@@ -43,13 +43,24 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          # gh exits non-zero when it cannot find a label in the repository, so
+          # edit the label only when the repository defines it. A label the
+          # repository does not define must not fail the run.
+          linter_error_label_defined() {
+            gh label list --repo "$GITHUB_REPOSITORY" --search "linter error" \
+              --json name --jq '.[].name' | grep -Fxq "linter error"
+          }
           if [ -s error.log ]
           then
             gh pr comment $(<PRurl) -b "Linter failed, fix the error(s):
             \`\`\`
             $(cat error.log)
             \`\`\`"
-            gh pr edit $(<PRurl) --add-label "linter error"
-          else
+            if linter_error_label_defined
+            then
+              gh pr edit $(<PRurl) --add-label "linter error"
+            fi
+          elif linter_error_label_defined
+          then
             gh pr edit $(<PRurl) --remove-label "linter error"
           fi
